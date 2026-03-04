@@ -20,9 +20,23 @@ class _TaskListScreenState extends State<TaskListScreen> {
   final TextEditingController _descriptionController = TextEditingController();
 
   // ---
-  // MODAL BOTTOM SHEET METHOD (USER STORY #1)
+  // MODAL BOTTOM SHEET METHOD (USER STORY #1 & #4)
   // ---
-  void _showAddTaskModal(BuildContext context) {
+  // OOP & FLUTTER CONCEPT: Optional Parameters
+  // By putting [Task? existingTask] in brackets with a question mark, we tell Dart:
+  // "You might receive a task to edit, or it might be 'null' if we are creating a new one."
+  void _showTaskModal(BuildContext context, [Task? existingTask]) {
+    // LOGIC: CREATE vs. UPDATE
+    // If we received an existing task, we inject its data into the text controllers.
+    // If not, we clear the controllers so they are completely empty.
+    if (existingTask != null) {
+      _titleController.text = existingTask.title;
+      _descriptionController.text = existingTask.description;
+    } else {
+      _titleController.clear();
+      _descriptionController.clear();
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled:
@@ -39,13 +53,16 @@ class _TaskListScreenState extends State<TaskListScreen> {
             top: 16,
           ),
           child: Column(
-            mainAxisSize:
-                MainAxisSize.min, // Takes only the vertical space it needs
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Add New Task',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              // DYNAMIC UI: Change the title based on the action
+              Text(
+                existingTask != null ? 'Edit Task' : 'Add New Task',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               TextField(
                 controller: _titleController,
@@ -58,8 +75,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
                   labelText: 'Description (Optional)',
                 ),
               ),
-              const SizedBox(height: 16), // Visual spacing
-              // SAVE BUTTON
+              const SizedBox(height: 16),
+
               SizedBox(
                 width: double.infinity, // Makes the button stretch full-width
                 child: ElevatedButton(
@@ -68,43 +85,43 @@ class _TaskListScreenState extends State<TaskListScreen> {
                     foregroundColor: Colors.white,
                   ),
                   onPressed: () {
-                    // ACCEPTANCE CRITERIA 3: Empty task prevention
-                    // We use '.trim()' to remove accidental blank spaces.
                     if (_titleController.text.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Task title cannot be empty!'),
                         ),
                       );
-                      return; // Stops the function execution here
+                      return;
                     }
 
-                    // ACCEPTANCE CRITERIA 2: Saving the task
-                    // We instantiate a new Task object using the OOP principles.
-                    final newTask = Task(
-                      id: DateTime.now().millisecondsSinceEpoch
-                          .toString(), // Simple unique ID
-                      title: _titleController.text.trim(),
-                      description: _descriptionController.text.trim(),
-                      createdAt: DateTime.now(),
-                      appUserId: 'user_001', // Linked to our mock user
-                      categoryId: 'cat_1', // Default category for now
-                    );
-
-                    // UPDATE THE STATE (UI)
                     setState(() {
-                      // We use insert(0, ...) to add the new task at the top of the list!
-                      tasks.insert(0, newTask);
+                      if (existingTask != null) {
+                        // USER STORY #4: UPDATE OPERATION
+                        // If it's an existing task, we just update its properties.
+                        existingTask.title = _titleController.text.trim();
+                        existingTask.description = _descriptionController.text
+                            .trim();
+                      } else {
+                        // USER STORY #1: CREATE OPERATION
+                        // If it's null, we create a brand new object.
+                        final newTask = Task(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          title: _titleController.text.trim(),
+                          description: _descriptionController.text.trim(),
+                          createdAt: DateTime.now(),
+                          appUserId: 'user_001',
+                          categoryId: 'cat_1',
+                        );
+                        tasks.insert(0, newTask);
+                      }
                     });
 
-                    // CLEAN UP: Clear text fields for the next time it opens
-                    _titleController.clear();
-                    _descriptionController.clear();
-
-                    // Close the modal
                     Navigator.pop(context);
                   },
-                  child: const Text('Save Task'),
+                  // DYNAMIC UI: Change the button text
+                  child: Text(
+                    existingTask != null ? 'Update Task' : 'Save Task',
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -138,13 +155,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
           // FLUTTER CONCEPT: Dismissible
           // A widget that can be dismissed by dragging in the indicated direction.
           return Dismissible(
-            // FLUTTER CONCEPT: Keys
-            // When widgets move around or get deleted, Flutter needs a unique ID
-            // to know exactly WHICH widget is being interacted with.
             key: ValueKey(task.id),
-
-            // UI CONCEPT: Swipe Direction
-            // We restrict the swipe to only work from right to left (endToStart).
             direction: DismissDirection.endToStart,
 
             // UI CONCEPT: Background
@@ -193,10 +204,14 @@ class _TaskListScreenState extends State<TaskListScreen> {
               );
             },
 
-            // UI CONCEPT: ListTile
-            // A pre-built widget perfect for lists with a title, subtitle, and icons.
-            // Now wrapped securely inside the Dismissible.
+            // FLUTTER CONCEPT: GestureDetector / InkWell
+            // We use ListTile's built-in onLongPress to trigger the edit mode.
             child: ListTile(
+              // USER STORY #4: TRIGGERING THE EDIT MODAL
+              onLongPress: () {
+                // We call the exact same function, but this time we pass the task!
+                _showTaskModal(context, task);
+              },
               leading: Checkbox(
                 value: task.isCompleted,
                 onChanged: (bool? newValue) {
@@ -220,15 +235,14 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 ),
               ),
               subtitle: Text(task.description),
-              // We can remove the static swipe icon now, as the actual gesture works!
-              // trailing: const Icon(Icons.swipe_left, color: Colors.grey, size: 16),
             ),
           );
         },
       ),
-      // USER STORY #1: ACCEPTANCE CRITERIA 1 - Triggering the modal
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddTaskModal(context),
+        // USER STORY #1: TRIGGERING THE CREATE MODAL
+        // Notice we don't pass any task here, so 'existingTask' will be null.
+        onPressed: () => _showTaskModal(context),
         backgroundColor: Colors.blueAccent,
         child: const Icon(Icons.add, color: Colors.white),
       ),
