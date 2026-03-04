@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+// IMPORTANT: Make sure these import paths match your actual project structure!
 import '../models/task.dart';
-import '../data/mock_data.dart';
+// import '../data/mock_data.dart'; // Only needed if you want to load mock data initially
 
 class TaskListScreen extends StatefulWidget {
   const TaskListScreen({super.key});
@@ -10,25 +13,55 @@ class TaskListScreen extends StatefulWidget {
 }
 
 class _TaskListScreenState extends State<TaskListScreen> {
-  // Bring the list of tasks from our MockData class
-  final List<Task> tasks = MockData.myTasks;
+  // We start with an empty list. It will be populated from the device's storage.
+  List<Task> tasks = [];
 
-  // FLUTTER CONCEPT: TextEditingController
-  // These controllers act like a bridge between the UI (the text fields)
-  // and our logic. They allow us to read what the user types in real-time.
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
   // ---
-  // MODAL BOTTOM SHEET METHOD (USER STORY #1 & #4)
+  // LIFECYCLE: initState
   // ---
-  // OOP & FLUTTER CONCEPT: Optional Parameters
-  // By putting [Task? existingTask] in brackets with a question mark, we tell Dart:
-  // "You might receive a task to edit, or it might be 'null' if we are creating a new one."
+  @override
+  void initState() {
+    super.initState();
+    _loadTasksFromDevice();
+  }
+
+  // ---
+  // DATA PERSISTENCE: LOAD (READ)
+  // ---
+  Future<void> _loadTasksFromDevice() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? tasksJsonString = prefs.getString('cbtis47_tasks_key');
+
+    if (tasksJsonString != null) {
+      List<dynamic> decodedJsonList = jsonDecode(tasksJsonString);
+      setState(() {
+        tasks = decodedJsonList
+            .map((jsonItem) => Task.fromJson(jsonItem))
+            .toList();
+      });
+    }
+  }
+
+  // ---
+  // DATA PERSISTENCE: SAVE (WRITE)
+  // ---
+  Future<void> _saveTasksToDevice() async {
+    final prefs = await SharedPreferences.getInstance();
+    List<Map<String, dynamic>> jsonList = tasks
+        .map((task) => task.toJson())
+        .toList();
+    String tasksString = jsonEncode(jsonList);
+    await prefs.setString('cbtis47_tasks_key', tasksString);
+  }
+
+  // ---
+  // MODAL BOTTOM SHEET (CREATE & UPDATE)
+  // ---
   void _showTaskModal(BuildContext context, [Task? existingTask]) {
-    // LOGIC: CREATE vs. UPDATE
-    // If we received an existing task, we inject its data into the text controllers.
-    // If not, we clear the controllers so they are completely empty.
+    // Inject existing data if editing, or clear if creating a new task
     if (existingTask != null) {
       _titleController.text = existingTask.title;
       _descriptionController.text = existingTask.description;
@@ -39,12 +72,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled:
-          true, // Allows the modal to resize when the keyboard appears
+      isScrollControlled: true,
       builder: (BuildContext ctx) {
-        // UI CONCEPT: Padding & MediaQuery (The Keyboard Trick)
-        // We add dynamic padding to the bottom exactly equal to the keyboard's height.
-        // This pushes the entire modal up so the input fields are never hidden!
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -56,7 +85,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // DYNAMIC UI: Change the title based on the action
               Text(
                 existingTask != null ? 'Edit Task' : 'Add New Task',
                 style: const TextStyle(
@@ -67,7 +95,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
               TextField(
                 controller: _titleController,
                 decoration: const InputDecoration(labelText: 'Task Title'),
-                autofocus: true, // UX DETAIL: Automatically opens the keyboard
+                autofocus: true,
               ),
               TextField(
                 controller: _descriptionController,
@@ -78,13 +106,14 @@ class _TaskListScreenState extends State<TaskListScreen> {
               const SizedBox(height: 16),
 
               SizedBox(
-                width: double.infinity, // Makes the button stretch full-width
+                width: double.infinity,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
                   ),
                   onPressed: () {
+                    // Validation: Prevent empty tasks
                     if (_titleController.text.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -96,14 +125,12 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
                     setState(() {
                       if (existingTask != null) {
-                        // USER STORY #4: UPDATE OPERATION
-                        // If it's an existing task, we just update its properties.
+                        // UPDATE LOGIC
                         existingTask.title = _titleController.text.trim();
                         existingTask.description = _descriptionController.text
                             .trim();
                       } else {
-                        // USER STORY #1: CREATE OPERATION
-                        // If it's null, we create a brand new object.
+                        // CREATE LOGIC
                         final newTask = Task(
                           id: DateTime.now().millisecondsSinceEpoch.toString(),
                           title: _titleController.text.trim(),
@@ -116,9 +143,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
                       }
                     });
 
-                    Navigator.pop(context);
+                    // SAVE CHANGES TO DEVICE
+                    _saveTasksToDevice();
+
+                    Navigator.pop(context); // Close the modal
                   },
-                  // DYNAMIC UI: Change the button text
                   child: Text(
                     existingTask != null ? 'Update Task' : 'Save Task',
                   ),
@@ -132,6 +161,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
+  // ---
+  // UI BUILDER
+  // ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -140,108 +172,87 @@ class _TaskListScreenState extends State<TaskListScreen> {
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
       ),
-      // FLUTTER CONCEPT: ListView.builder
-      // This is the most efficient way to create a list in Flutter.
-      // It only renders the items that are visible on the screen!
-      body: ListView.builder(
-        itemCount: tasks.length,
-        itemBuilder: (context, index) {
-          // We get the specific task object for this position (index)
-          final task = tasks[index];
+      // Handle empty state gracefully
+      body: tasks.isEmpty
+          ? const Center(
+              child: Text(
+                'No tasks yet. Add one!',
+                style: TextStyle(fontSize: 18, color: Colors.grey),
+              ),
+            )
+          : ListView.builder(
+              itemCount: tasks.length,
+              itemBuilder: (context, index) {
+                final task = tasks[index];
 
-          // ---
-          // USER STORY #3: TASK DELETION (SWIPE TO DELETE)
-          // ---
-          // FLUTTER CONCEPT: Dismissible
-          // A widget that can be dismissed by dragging in the indicated direction.
-          return Dismissible(
-            key: ValueKey(task.id),
-            direction: DismissDirection.endToStart,
-
-            // UI CONCEPT: Background
-            // This is what shows UP BEHIND the list item when you start swiping.
-            background: Container(
-              color: Colors.red,
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 20.0),
-              child: const Icon(Icons.delete, color: Colors.white),
-            ),
-
-            // EVENT: onDismissed
-            // This code runs AFTER the user finishes the swipe gesture.
-            onDismissed: (direction) {
-              // 1. TEMPORARY MEMORY: We save the task and its position before deleting it.
-              // This is crucial for the "Undo" functionality.
-              final deletedTask = task;
-              final deletedIndex = index;
-
-              // 2. STATE UPDATE: Remove the item from our list so the UI updates.
-              setState(() {
-                tasks.removeAt(index);
-              });
-
-              // 3. USER EXPERIENCE (UX): ScaffoldMessenger & SnackBar
-              // We show a temporary pop-up message at the bottom of the screen.
-              ScaffoldMessenger.of(
-                context,
-              ).clearSnackBars(); // Clears any existing snackbars
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Task "${deletedTask.title}" deleted.'),
-                  duration: const Duration(seconds: 4), // Grace period
-                  // USER STORY #3: ACCEPTANCE CRITERIA 3 & 4 (UNDO ACTION)
-                  action: SnackBarAction(
-                    label: 'Undo',
-                    onPressed: () {
-                      // If the user clicks "Undo", we put the task back exactly
-                      // where it was before using insert().
-                      setState(() {
-                        tasks.insert(deletedIndex, deletedTask);
-                      });
-                    },
+                return Dismissible(
+                  key: ValueKey(task.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20.0),
+                    child: const Icon(Icons.delete, color: Colors.white),
                   ),
-                ),
-              );
-            },
+                  onDismissed: (direction) {
+                    final deletedTask = task;
+                    final deletedIndex = index;
 
-            // FLUTTER CONCEPT: GestureDetector / InkWell
-            // We use ListTile's built-in onLongPress to trigger the edit mode.
-            child: ListTile(
-              // USER STORY #4: TRIGGERING THE EDIT MODAL
-              onLongPress: () {
-                // We call the exact same function, but this time we pass the task!
-                _showTaskModal(context, task);
+                    setState(() {
+                      tasks.removeAt(index);
+                    });
+
+                    // SAVE STATE AFTER DELETION
+                    _saveTasksToDevice();
+
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Task "${deletedTask.title}" deleted.'),
+                        duration: const Duration(seconds: 4),
+                        action: SnackBarAction(
+                          label: 'Undo',
+                          onPressed: () {
+                            setState(() {
+                              tasks.insert(deletedIndex, deletedTask);
+                            });
+                            // SAVE STATE AGAIN IF UNDO IS CLICKED
+                            _saveTasksToDevice();
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  child: ListTile(
+                    onLongPress: () => _showTaskModal(context, task),
+                    leading: Checkbox(
+                      value: task.isCompleted,
+                      onChanged: (bool? newValue) {
+                        setState(() {
+                          task.isCompleted = newValue ?? false;
+                        });
+                        // SAVE STATE WHEN CHECKED/UNCHECKED
+                        _saveTasksToDevice();
+                      },
+                    ),
+                    title: Text(
+                      task.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        decoration: task.isCompleted
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                        color: task.isCompleted ? Colors.grey : Colors.black87,
+                      ),
+                    ),
+                    subtitle: task.description.isNotEmpty
+                        ? Text(task.description)
+                        : null, // Only show subtitle if there is a description
+                  ),
+                );
               },
-              leading: Checkbox(
-                value: task.isCompleted,
-                onChanged: (bool? newValue) {
-                  // OOP & FLUTTER CONCEPT: setState
-                  // This function tells Flutter: "Something changed in the data,
-                  // please redraw the screen so the user can see it!"
-                  setState(() {
-                    task.isCompleted = newValue ?? false;
-                  });
-                },
-              ),
-              title: Text(
-                task.title,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  // USER STORY #2: Visual indicator for completion
-                  decoration: task.isCompleted
-                      ? TextDecoration.lineThrough
-                      : TextDecoration.none,
-                  color: task.isCompleted ? Colors.grey : Colors.black87,
-                ),
-              ),
-              subtitle: Text(task.description),
             ),
-          );
-        },
-      ),
       floatingActionButton: FloatingActionButton(
-        // USER STORY #1: TRIGGERING THE CREATE MODAL
-        // Notice we don't pass any task here, so 'existingTask' will be null.
         onPressed: () => _showTaskModal(context),
         backgroundColor: Colors.blueAccent,
         child: const Icon(Icons.add, color: Colors.white),
