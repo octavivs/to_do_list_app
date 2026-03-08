@@ -6,9 +6,6 @@ import 'package:provider/provider.dart';
 import 'package:to_do_list_app/models/task.dart';
 import 'package:to_do_list_app/logic/providers/task_provider.dart';
 
-// FLUTTER CONCEPT: StatefulWidget for Local UI State
-// We use a StatefulWidget here because this specific UI component needs to
-// manage its own text inputs (Controllers) while it's open.
 class TaskBottomSheet extends StatefulWidget {
   final Task? existingTask;
 
@@ -22,27 +19,25 @@ class _TaskBottomSheetState extends State<TaskBottomSheet> {
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
 
-  // ---
-  // LIFECYCLE: initState
-  // ---
+  // STATE VARIABLE: Holds the currently selected Foreign Key
+  late String _selectedCategoryId;
+
   @override
   void initState() {
     super.initState();
-    // We initialize the controllers with existing data if we are editing.
-    // 'widget.existingTask' allows the State class to access properties from the Widget class.
     _titleController = TextEditingController(
       text: widget.existingTask?.title ?? '',
     );
     _descriptionController = TextEditingController(
       text: widget.existingTask?.description ?? '',
     );
+
+    // Initialize with the existing task's category, or default to the first one available
+    final provider = context.read<TaskProvider>();
+    _selectedCategoryId =
+        widget.existingTask?.categoryId ?? provider.categories.first.id;
   }
 
-  // ---
-  // LIFECYCLE: dispose
-  // ---
-  // IMPORTANT: Always dispose of controllers when the widget is destroyed
-  // to prevent memory leaks in the application.
   @override
   void dispose() {
     _titleController.dispose();
@@ -64,6 +59,8 @@ class _TaskBottomSheetState extends State<TaskBottomSheet> {
       // UPDATE EXISTING TASK
       widget.existingTask!.title = _titleController.text.trim();
       widget.existingTask!.description = _descriptionController.text.trim();
+      // Assign the new selected category
+      widget.existingTask!.categoryId = _selectedCategoryId;
       provider.updateTask(widget.existingTask!);
     } else {
       // CREATE NEW TASK
@@ -73,19 +70,20 @@ class _TaskBottomSheetState extends State<TaskBottomSheet> {
         description: _descriptionController.text.trim(),
         createdAt: DateTime.now(),
         appUserId: 'user_001',
-        categoryId: 'cat_1', // Hardcoded for now until we implement categories
+        // Dynamically assign the selected category ID!
+        categoryId: _selectedCategoryId,
       );
       provider.addTask(newTask);
     }
 
-    // Close the bottom sheet
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    // FLUTTER BUG FIX: Keyboard Overlap
-    // Padding + viewInsets.bottom ensures the bottom sheet moves up when the keyboard appears.
+    // Read the available categories from the provider to build our dropdown
+    final availableCategories = context.read<TaskProvider>().categories;
+
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -116,6 +114,36 @@ class _TaskBottomSheetState extends State<TaskBottomSheet> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // ---
+              // CATEGORY DROPDOWN SELECTOR
+              // ---
+              DropdownButtonFormField<String>(
+                value: _selectedCategoryId,
+                decoration: const InputDecoration(
+                  labelText: 'Category',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                items: availableCategories.map((category) {
+                  return DropdownMenuItem<String>(
+                    value: category.id,
+                    child: Text(category.name),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _selectedCategoryId = newValue;
+                    });
+                  }
+                },
+              ),
+
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
