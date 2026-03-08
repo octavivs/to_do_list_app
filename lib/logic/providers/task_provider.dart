@@ -3,45 +3,50 @@
 // ---
 import 'package:flutter/material.dart';
 import 'package:to_do_list_app/models/task.dart';
+import 'package:to_do_list_app/models/category.dart';
 import 'package:to_do_list_app/data/repositories/local_storage_repository.dart';
 
-// OOP CONCEPT: INHERITANCE
-// By extending 'ChangeNotifier', this class gains the ability to broadcast
-// messages (notifications) to any Widget that is listening to it.
 class TaskProvider extends ChangeNotifier {
-  // 1. REPOSITORY INSTANCE
-  // The provider handles the business logic, so it needs to talk to the data layer.
   final LocalStorageRepository _repository = LocalStorageRepository();
-
-  // 2. INTERNAL STATE (Encapsulation)
-  // We make the list private (using the underscore '_') so external files
-  // cannot modify it directly without using our specific methods.
   List<Task> _tasks = [];
 
-  // 3. GETTERS
-  // Expose the state to the UI in a read-only manner.
+  // ---
+  // CATEGORIES DATA (MOCK)
+  // ---
+  // A static list of categories representing our relational 'CATEGORY' table.
+  final List<Category> _categories = [
+    Category(id: 'cat_1', name: 'Work', colorHex: '#FF5733'),
+    Category(id: 'cat_2', name: 'Personal', colorHex: '#33FF57'),
+    Category(id: 'cat_3', name: 'Motorcycles', colorHex: '#3357FF'),
+  ];
+
+  // Expose categories to the UI
+  List<Category> get categories => _categories;
+
+  // Helper method to retrieve a full Category object using its Foreign Key (ID).
+  // This is heavily used by the UI to draw the correct color dots.
+  Category getCategoryById(String categoryId) {
+    return _categories.firstWhere(
+      (cat) => cat.id == categoryId,
+      orElse: () => _categories.first, // Fallback if ID is not found
+    );
+  }
+
+  // ... (Keep all your existing getters and CRUD methods below exactly the same)
   List<Task> get allTasks => _tasks;
   List<Task> get pendingTasks =>
       _tasks.where((task) => !task.isCompleted).toList();
   List<Task> get completedTasks =>
       _tasks.where((task) => task.isCompleted).toList();
 
-  // ---
-  // INITIALIZATION
-  // ---
   TaskProvider() {
     _loadTasks();
   }
 
   Future<void> _loadTasks() async {
     _tasks = await _repository.loadTasks();
-    // CRITICAL: Tells all listening UI components to rebuild!
     notifyListeners();
   }
-
-  // ---
-  // CRUD OPERATIONS & BUSINESS LOGIC
-  // ---
 
   void addTask(Task task) {
     _tasks.insert(0, task);
@@ -61,7 +66,6 @@ class TaskProvider extends ChangeNotifier {
     _syncWithStorage();
   }
 
-  // Returns the original index so the UI can offer an "Undo" feature.
   int deleteTask(Task task) {
     final index = _tasks.indexOf(task);
     if (index != -1) {
@@ -72,14 +76,12 @@ class TaskProvider extends ChangeNotifier {
   }
 
   void undoDelete(int index, Task task) {
-    // Safety check to ensure we don't insert out of bounds
     if (index >= 0 && index <= _tasks.length) {
       _tasks.insert(index, task);
       _syncWithStorage();
     }
   }
 
-  // Centralized method to save changes and notify the UI
   void _syncWithStorage() {
     _repository.saveTasks(_tasks);
     notifyListeners();
