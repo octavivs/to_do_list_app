@@ -46,6 +46,13 @@ dependencies:
   # We use the caret (^) to allow minor, non-breaking updates automatically.
   flutter_launcher_icons: ^0.14.4
 
+  # --- 
+  # STATE MANAGEMENT PACKAGE
+  # --- 
+  # This package allows us to manage application state in a predictable way.
+  # We use the caret (^) to allow minor, non-breaking updates automatically.
+  provider: ^6.1.5+1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
