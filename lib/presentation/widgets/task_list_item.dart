@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:to_do_list_app/models/task.dart';
 import 'package:to_do_list_app/logic/providers/task_provider.dart';
 import 'package:to_do_list_app/core/utils/color_utils.dart';
+import 'package:to_do_list_app/core/constants/app_colors.dart';
 
 class TaskListItem extends StatelessWidget {
   final Task task;
@@ -23,33 +24,14 @@ class TaskListItem extends StatelessWidget {
       key: ValueKey(task.id),
       direction: DismissDirection.endToStart,
       background: Container(
-        color: Colors.red,
+        color: AppColors.error, // <-- Replaced Colors.red with AppColors.error
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20.0),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: const Icon(Icons.delete, color: AppColors.surface),
       ),
-      onDismissed: (direction) {
-        final originalIndex = provider.deleteTask(task);
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Task "${task.title}" deleted.'),
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'Undo',
-              onPressed: () => provider.undoDelete(originalIndex, task),
-            ),
-          ),
-        );
-      },
+      // ...
       child: ListTile(
-        onLongPress: onEdit,
-        leading: Checkbox(
-          value: task.isCompleted,
-          onChanged: (_) {
-            provider.toggleTaskCompletion(task);
-          },
-        ),
+        // ...
         title: Text(
           task.title,
           style: TextStyle(
@@ -57,10 +39,20 @@ class TaskListItem extends StatelessWidget {
             decoration: task.isCompleted
                 ? TextDecoration.lineThrough
                 : TextDecoration.none,
-            color: task.isCompleted ? Colors.grey : Colors.black87,
+            // Use semantic text colors
+            color: task.isCompleted
+                ? AppColors.textSecondary
+                : AppColors.textPrimary,
           ),
         ),
-        subtitle: task.description.isNotEmpty ? Text(task.description) : null,
+        subtitle: task.description.isNotEmpty
+            ? Text(
+                task.description,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                ), // Subtitle color
+              )
+            : null,
         // ---
         // VISUAL CATEGORY INDICATOR
         // ---
