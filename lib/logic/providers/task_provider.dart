@@ -13,31 +13,56 @@ class TaskProvider extends ChangeNotifier {
   // ---
   // CATEGORIES DATA (MOCK)
   // ---
-  // A static list of categories representing our relational 'CATEGORY' table.
   final List<Category> _categories = [
     Category(id: 'cat_1', name: 'Work', colorHex: '#FF5733'),
     Category(id: 'cat_2', name: 'Personal', colorHex: '#33FF57'),
     Category(id: 'cat_3', name: 'Motorcycles', colorHex: '#3357FF'),
   ];
 
-  // Expose categories to the UI
+  // ---
+  // FILTER STATE
+  // ---
+  // A variable to store the ID of the currently selected category.
+  // If it's null, it means "All Categories" are selected.
+  String? _selectedFilterCategoryId;
+
+  String? get selectedFilterCategoryId => _selectedFilterCategoryId;
+
+  // Method to update the filter from the UI
+  void setFilterCategory(String? categoryId) {
+    _selectedFilterCategoryId = categoryId;
+    notifyListeners(); // Tells the UI to rebuild with the new filter
+  }
+
   List<Category> get categories => _categories;
 
-  // Helper method to retrieve a full Category object using its Foreign Key (ID).
-  // This is heavily used by the UI to draw the correct color dots.
   Category getCategoryById(String categoryId) {
     return _categories.firstWhere(
       (cat) => cat.id == categoryId,
-      orElse: () => _categories.first, // Fallback if ID is not found
+      orElse: () => _categories.first,
     );
   }
 
-  // ... (Keep all your existing getters and CRUD methods below exactly the same)
-  List<Task> get allTasks => _tasks;
+  // ---
+  // ADVANCED GETTERS (Combined Filtering)
+  // ---
+  // First, we create a private getter that filters by category (if one is selected)
+  List<Task> get _filteredByCategory {
+    if (_selectedFilterCategoryId == null) {
+      return _tasks; // No category filter applied
+    }
+    return _tasks
+        .where((task) => task.categoryId == _selectedFilterCategoryId)
+        .toList();
+  }
+
+  // Then, our public getters use the already filtered list instead of the raw _tasks list.
+  // This allows the TabBar (status) and the Chips (category) to work together seamlessly!
+  List<Task> get allTasks => _filteredByCategory;
   List<Task> get pendingTasks =>
-      _tasks.where((task) => !task.isCompleted).toList();
+      _filteredByCategory.where((task) => !task.isCompleted).toList();
   List<Task> get completedTasks =>
-      _tasks.where((task) => task.isCompleted).toList();
+      _filteredByCategory.where((task) => task.isCompleted).toList();
 
   TaskProvider() {
     _loadTasks();
