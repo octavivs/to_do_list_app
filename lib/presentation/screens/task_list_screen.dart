@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// IMPORTANT: Make sure these import paths match your actual project structure!
-import '../models/task.dart';
-// import '../data/mock_data.dart'; // Only needed if you want to load mock data initially
+import 'package:to_do_list_app/models/task.dart';
+// import 'package:to_do_list_app/data/mock_data.dart'; // Only needed if you want to load mock data initially
 
 class TaskListScreen extends StatefulWidget {
   const TaskListScreen({super.key});
