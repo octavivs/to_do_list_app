@@ -120,7 +120,7 @@ class _TaskBottomSheetState extends State<TaskBottomSheet> {
               // CATEGORY DROPDOWN SELECTOR
               // ---
               DropdownButtonFormField<String>(
-                value: _selectedCategoryId,
+                initialValue: _selectedCategoryId,
                 decoration: const InputDecoration(
                   labelText: 'Category',
                   border: OutlineInputBorder(),
