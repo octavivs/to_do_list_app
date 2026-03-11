@@ -1,5 +1,5 @@
 // ---
-// MAIN ENTRY POINT
+// MAIN ENTRY POINT (Updated for Firebase Initialization)
 // ---
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,10 +7,28 @@ import 'package:to_do_list_app/logic/providers/task_provider.dart';
 import 'package:to_do_list_app/presentation/screens/task_list_screen.dart';
 import 'package:to_do_list_app/core/constants/app_colors.dart';
 
-void main() {
-  // FLUTTER CONCEPT: App Initialization with Provider
-  // We wrap our entire app in a ChangeNotifierProvider so the state
-  // is globally available to any widget that requests it.
+// ---
+// NEW FIREBASE IMPORTS
+// ---
+import 'package:firebase_core/firebase_core.dart';
+import 'package:to_do_list_app/firebase_options.dart';
+
+// OOP CONCEPT: Asynchronous Main Function
+// Since initializing Firebase requires native communication with the OS,
+// we must change main() to be async and wait for the setup to complete.
+void main() async {
+  // FLUTTER CONCEPT: Binding Initialization
+  // This line is absolutely mandatory before using any native plugins (like Firebase)
+  // prior to calling runApp(). It ensures the framework is ready to talk to the device.
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // ---
+  // FIREBASE INITIALIZATION
+  // ---
+  // We use the auto-generated options file to provide the correct API keys
+  // depending on whether the app is running on Android or iOS.
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(
     ChangeNotifierProvider(
       create: (context) => TaskProvider(),
@@ -27,24 +45,15 @@ class TodoApp extends StatelessWidget {
     return MaterialApp(
       title: 'TaskFlow',
       debugShowCheckedModeBanner: false,
-
-      // ---
-      // GLOBAL THEME CONFIGURATION
-      // ---
       theme: ThemeData(
-        // Generates a cohesive palette based on our primary color
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
-        // Sets the default background color for all screens
         scaffoldBackgroundColor: AppColors.background,
-
-        // Globally configures all AppBars in the application
         appBarTheme: const AppBarTheme(
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.textLight,
           centerTitle: true,
           elevation: 0,
         ),
-
         useMaterial3: true,
       ),
       home: const TaskListScreen(),
