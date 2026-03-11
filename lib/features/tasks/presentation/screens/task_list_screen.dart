@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:to_do_list_app/core/constants/app_colors.dart';
+import 'package:to_do_list_app/features/auth/logic/providers/auth_provider.dart';
 import 'package:to_do_list_app/features/tasks/data/models/task.dart';
 import 'package:to_do_list_app/features/tasks/logic/providers/task_provider.dart';
 import 'package:to_do_list_app/features/tasks/presentation/widgets/category_filter_chips.dart';
@@ -59,6 +60,21 @@ class TaskListScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('TaskFlow'),
+          // ---
+          // NEW FEATURE: LOGOUT BUTTON
+          // ---
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Log Out',
+              onPressed: () {
+                // Calling the logout method clears the Firebase session.
+                // The AuthWrapper will automatically detect this state change
+                // and redirect the user back to the AuthScreen.
+                context.read<AuthProvider>().logout();
+              },
+            ),
+          ],
           bottom: const TabBar(
             labelColor: AppColors.textLight,
             unselectedLabelColor: Colors.white70,
