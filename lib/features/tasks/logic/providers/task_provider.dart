@@ -86,13 +86,23 @@ class TaskProvider extends ChangeNotifier {
   }
 
   void _listenToCloudTasks(String userId) {
-    // Cancel any previous subscriptions to prevent memory leaks
     _tasksSubscription?.cancel();
 
-    _tasksSubscription = _repository.getTasksStream(userId).listen((tasksList) {
-      _tasks = tasksList;
-      notifyListeners(); // Tells the UI to rebuild automatically!
-    });
+    _tasksSubscription = _repository
+        .getTasksStream(userId)
+        .listen(
+          (tasksList) {
+            _tasks = tasksList;
+            notifyListeners();
+          },
+          // ---
+          // UI FIX: CATCHING THE SILENT ERROR
+          // ---
+          onError: (error) {
+            // Esto imprimirá el error exacto en tu consola de VS Code/Android Studio.
+            debugPrint('🔥 FIRESTORE STREAM ERROR: $error');
+          },
+        );
   }
 
   @override
