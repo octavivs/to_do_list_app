@@ -1,14 +1,27 @@
 // ---
 // STATE MANAGEMENT: task_provider.dart
+// PATH: lib/features/tasks/logic/providers/task_provider.dart
 // ---
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:to_do_list_app/features/tasks/data/models/category.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:to_do_list_app/features/tasks/data/models/task.dart';
-import 'package:to_do_list_app/features/tasks/data/repositories/local_storage_repository.dart';
+import 'package:to_do_list_app/features/tasks/data/models/category.dart';
+import 'package:to_do_list_app/features/tasks/data/repositories/cloud_storage_repository.dart';
 
+// OOP CONCEPT: Reactive State Management
+// This provider now acts as a bridge between the UI and the Cloud.
+// It listens to Firebase Authentication to know WHO is logged in, and then
+// listens to Firestore to get WHAT tasks belong to that specific user.
 class TaskProvider extends ChangeNotifier {
-  final LocalStorageRepository _repository = LocalStorageRepository();
+  final CloudStorageRepository _repository = CloudStorageRepository();
+
   List<Task> _tasks = [];
+
+  // FLUTTER CONCEPT: StreamSubscription
+  // We keep a reference to the active connection to the database so we can
+  // cleanly close it if the user logs out or the app is closed.
+  StreamSubscription<List<Task>>? _tasksSubscription;
 
   // ---
   // CATEGORIES DATA (MOCK)
@@ -19,22 +32,15 @@ class TaskProvider extends ChangeNotifier {
     Category(id: 'cat_3', name: 'Motorcycles', colorHex: '#3357FF'),
   ];
 
-  // ---
-  // FILTER STATE
-  // ---
-  // A variable to store the ID of the currently selected category.
-  // If it's null, it means "All Categories" are selected.
   String? _selectedFilterCategoryId;
 
   String? get selectedFilterCategoryId => _selectedFilterCategoryId;
+  List<Category> get categories => _categories;
 
-  // Method to update the filter from the UI
   void setFilterCategory(String? categoryId) {
     _selectedFilterCategoryId = categoryId;
-    notifyListeners(); // Tells the UI to rebuild with the new filter
+    notifyListeners();
   }
-
-  List<Category> get categories => _categories;
 
   Category getCategoryById(String categoryId) {
     return _categories.firstWhere(
@@ -46,69 +52,86 @@ class TaskProvider extends ChangeNotifier {
   // ---
   // ADVANCED GETTERS (Combined Filtering)
   // ---
-  // First, we create a private getter that filters by category (if one is selected)
   List<Task> get _filteredByCategory {
     if (_selectedFilterCategoryId == null) {
-      return _tasks; // No category filter applied
+      return _tasks;
     }
     return _tasks
         .where((task) => task.categoryId == _selectedFilterCategoryId)
         .toList();
   }
 
-  // Then, our public getters use the already filtered list instead of the raw _tasks list.
-  // This allows the TabBar (status) and the Chips (category) to work together seamlessly!
   List<Task> get allTasks => _filteredByCategory;
   List<Task> get pendingTasks =>
       _filteredByCategory.where((task) => !task.isCompleted).toList();
   List<Task> get completedTasks =>
       _filteredByCategory.where((task) => task.isCompleted).toList();
 
+  // ---
+  // CONSTRUCTOR: AUTO-INITIALIZATION
+  // ---
   TaskProvider() {
-    _loadTasks();
+    // We listen globally to the user's session.
+    FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      if (user != null) {
+        // User logged in: Start listening to their specific cloud data stream.
+        _listenToCloudTasks(user.uid);
+      } else {
+        // User logged out: Clear data from memory and stop listening.
+        _tasks = [];
+        _tasksSubscription?.cancel();
+        notifyListeners();
+      }
+    });
   }
 
-  Future<void> _loadTasks() async {
-    _tasks = await _repository.loadTasks();
-    notifyListeners();
+  void _listenToCloudTasks(String userId) {
+    // Cancel any previous subscriptions to prevent memory leaks
+    _tasksSubscription?.cancel();
+
+    _tasksSubscription = _repository.getTasksStream(userId).listen((tasksList) {
+      _tasks = tasksList;
+      notifyListeners(); // Tells the UI to rebuild automatically!
+    });
   }
 
-  void addTask(Task task) {
-    _tasks.insert(0, task);
-    _syncWithStorage();
+  @override
+  void dispose() {
+    _tasksSubscription?.cancel();
+    super.dispose();
   }
 
-  void updateTask(Task updatedTask) {
-    final index = _tasks.indexWhere((t) => t.id == updatedTask.id);
-    if (index != -1) {
-      _tasks[index] = updatedTask;
-      _syncWithStorage();
-    }
+  // ---
+  // CRUD OPERATIONS (CLOUD CONNECTED)
+  // ---
+  // Notice how we no longer manually update the '_tasks' list.
+  // We send the command to Firebase, and Firebase's Stream updates our list automatically.
+  // If the device is offline, Firebase caches the command and updates the UI instantly anyway!
+
+  Future<void> addTask(Task task) async {
+    await _repository.addTask(task);
   }
 
-  void toggleTaskCompletion(Task task) {
+  Future<void> updateTask(Task task) async {
+    await _repository.updateTask(task);
+  }
+
+  Future<void> toggleTaskCompletion(Task task) async {
     task.isCompleted = !task.isCompleted;
-    _syncWithStorage();
+    await _repository.updateTask(task);
   }
 
+  // We keep returning 'int' just to satisfy the Dismissible's UI requirement,
+  // but the real source of truth is now the cloud ordering.
   int deleteTask(Task task) {
     final index = _tasks.indexOf(task);
-    if (index != -1) {
-      _tasks.removeAt(index);
-      _syncWithStorage();
-    }
+    _repository.deleteTask(task.id);
     return index;
   }
 
+  // To undo a deletion in the cloud, we simply push the exact same Task object
+  // back to the database. Firestore will recreate it with its original ID!
   void undoDelete(int index, Task task) {
-    if (index >= 0 && index <= _tasks.length) {
-      _tasks.insert(index, task);
-      _syncWithStorage();
-    }
-  }
-
-  void _syncWithStorage() {
-    _repository.saveTasks(_tasks);
-    notifyListeners();
+    _repository.addTask(task);
   }
 }
