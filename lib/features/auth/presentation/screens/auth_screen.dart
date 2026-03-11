@@ -29,10 +29,14 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
+  // ---
+  // AUTHENTICATION LOGIC WITH UI FEEDBACK
+  // ---
+
   // Method triggered when the user taps the primary action button.
   Future<void> _submit() async {
     final authProvider = context.read<AuthProvider>();
-    authProvider.clearError(); // Reset any previous errors
+    authProvider.clearError();
 
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -44,20 +48,36 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
 
-    // Execute the corresponding asynchronous method based on the current mode
     bool success;
     if (_isLogin) {
+      // Attempt to Log In
       success = await authProvider.login(email, password);
     } else {
+      // Attempt to Sign Up
       success = await authProvider.register(email, password);
+
+      // FEATURE: Show success message on registration
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
     }
 
-    // If authentication fails, display the error message directly from Firebase.
+    // FEATURE: Explicit error handling for unregistered users or wrong credentials
     if (!success && mounted) {
+      // Firebase often returns generic error messages, we ensure a fallback text is always shown.
+      final errorMessage =
+          authProvider.errorMessage ?? 'Invalid credentials or user not found.';
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authProvider.errorMessage ?? 'Authentication failed.'),
+          content: Text(errorMessage),
           backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 4),
         ),
       );
     }
